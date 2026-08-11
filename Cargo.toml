@@ -3,5 +3,14 @@ name = "w1"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "w1"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+cli = ["dep:clap"]
+
 [dependencies]
-clap = { version = "4.6.6", features = ["derive"] }
+# feature = "cli"
+clap = { version = "4.6.6", features = ["derive"], optional = true }
