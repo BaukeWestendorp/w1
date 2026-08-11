@@ -32,11 +32,11 @@ impl<'src> Iterator for Tokenizer<'src> {
         if remaining.starts_with("{{") {
             self.pos += 2;
             self.block_depth += 1;
-            return Some(Token::OpenBlock);
+            return Some(Token::BlockOpen);
         } else if remaining.starts_with("}}") {
             self.pos += 2;
             self.block_depth = self.block_depth.saturating_sub(1);
-            return Some(Token::CloseBlock);
+            return Some(Token::BlockClose);
         }
 
         let first_char = remaining.chars().next().unwrap();
@@ -48,11 +48,11 @@ impl<'src> Iterator for Tokenizer<'src> {
             }
             '(' => {
                 self.pos += 1;
-                Some(Token::LParen)
+                Some(Token::ParenOpen)
             }
             ')' => {
                 self.pos += 1;
-                Some(Token::RParen)
+                Some(Token::ParenClose)
             }
             ',' => {
                 self.pos += 1;
@@ -100,16 +100,16 @@ impl<'src> Iterator for Tokenizer<'src> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Token<'src> {
     At,
     Ident(&'src str),
     Variable(&'src str),
-    LParen,
-    RParen,
+    ParenOpen,
+    ParenClose,
     Comma,
-    OpenBlock,
-    CloseBlock,
+    BlockOpen,
+    BlockClose,
     Text(&'src str),
 }
 
@@ -119,25 +119,12 @@ impl std::fmt::Display for Token<'_> {
             Token::At => write!(f, "@"),
             Token::Ident(ident) => write!(f, "{}", ident),
             Token::Variable(var) => write!(f, "${}", var),
-            Token::LParen => write!(f, "("),
-            Token::RParen => write!(f, ")"),
+            Token::ParenOpen => write!(f, "("),
+            Token::ParenClose => write!(f, ")"),
             Token::Comma => write!(f, ","),
-            Token::OpenBlock => write!(f, "{{"),
-            Token::CloseBlock => write!(f, "}}"),
+            Token::BlockOpen => write!(f, "{{"),
+            Token::BlockClose => write!(f, "}}"),
             Token::Text(text) => write!(f, "{}", text),
         }
     }
 }
-
-// @define card($title, $content) {{<div class="card">
-//         <h2>$title</h2>
-//         <div class="card-body">
-//             $content
-//         </div>
-//     </div>
-// }}
-// @card({{ Welcome  }},
-// {{ <p>Lorem ipsum dolor, sit amet consectetur.</p>
-//     <img src="kankerjulius.jpg" alt="Kanker Julius">
-//  }},
-// )

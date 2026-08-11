@@ -3,6 +3,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
+pub mod ast;
 pub mod token;
 
 #[derive(Parser, Debug)]
@@ -16,9 +17,13 @@ struct Args {
     #[arg(short, long, value_name = "FILE")]
     output: Option<PathBuf>,
 
-    /// Skip evaluation and only output the parsed tokens for debugging.
+    /// Skip building AST evaluation and output the parsed tokens for debugging.
     #[arg(long)]
     show_tokens: bool,
+
+    /// Skip evaluation and output the parsed AST for debugging.
+    #[arg(long)]
+    show_ast: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -34,7 +39,7 @@ fn main() -> io::Result<()> {
         }
     }
 
-    let tokens = token::tokenize(&src).collect::<Vec<_>>();
+    let tokens = token::tokenize(&src);
 
     if args.show_tokens {
         for token in tokens {
@@ -43,7 +48,13 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
-    let evaluated_output: String = todo!();
+    let ast = ast::parse(tokens);
+
+    if args.show_ast {
+        println!("{:#?}", ast);
+    }
+
+    let evaluated_output = "FIXME: EVALUATE OUTPUT";
 
     if let Some(output_path) = args.output {
         fs::write(output_path, evaluated_output)?;
