@@ -94,11 +94,11 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         let params = self.parse_params();
         let template = self.parse_block();
 
-        Node::Define {
+        Node::Definition(Definition {
             name,
             params,
             template,
-        }
+        })
     }
 
     fn parse_invoke(&mut self) -> Node<'src> {
@@ -107,7 +107,7 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         let name = self.expect_ident("expected identifier after @");
         let args = self.parse_args();
 
-        Node::Invoke { name, args }
+        Node::Invokation(Invokation { name, args })
     }
 
     fn parse_params(&mut self) -> Vec<Variable<'src>> {
@@ -189,22 +189,28 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ast<'src> {
-    nodes: Vec<Node<'src>>,
+    pub nodes: Vec<Node<'src>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node<'src> {
-    Define {
-        name: &'src str,
-        params: Vec<Variable<'src>>,
-        template: Block<'src>,
-    },
-    Invoke {
-        name: &'src str,
-        args: Vec<Block<'src>>,
-    },
+    Definition(Definition<'src>),
+    Invokation(Invokation<'src>),
     Variable(Variable<'src>),
     Text(&'src str),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Definition<'src> {
+    pub name: &'src str,
+    pub params: Vec<Variable<'src>>,
+    pub template: Block<'src>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Invokation<'src> {
+    pub name: &'src str,
+    pub args: Vec<Block<'src>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
