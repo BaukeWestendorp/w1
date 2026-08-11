@@ -3,9 +3,6 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
-pub mod ast;
-pub mod token;
-
 #[derive(Parser, Debug)]
 #[command(author, version, about = "A text processing macro language")]
 struct Args {
@@ -39,27 +36,27 @@ fn main() -> io::Result<()> {
         }
     }
 
-    let tokens = token::tokenize(&src);
-
     if args.show_tokens {
-        for token in tokens {
+        for token in w1::token::tokenize(&src) {
             println!("{:?}", token);
         }
+
         return Ok(());
     }
 
-    let ast = ast::parse(tokens);
-
     if args.show_ast {
+        let tokens = w1::token::tokenize(&src);
+        let ast = w1::ast::parse(tokens);
         println!("{:#?}", ast);
+        return Ok(());
     }
 
-    let evaluated_output = "FIXME: EVALUATE OUTPUT";
+    let output = w1::eval(&src);
 
     if let Some(output_path) = args.output {
-        fs::write(output_path, evaluated_output)?;
+        fs::write(output_path, output)?;
     } else {
-        io::stdout().write_all(evaluated_output.as_bytes())?;
+        io::stdout().write_all(output.as_bytes())?;
     }
 
     Ok(())
