@@ -5,16 +5,16 @@
 ## Example
 
 ```html
-@define card($title, $content) {{
-    <div class="card">
-        <h2>$title</h2>
-        <div class="card-body">
-            $content
-        </div>
+@macro card($title, $content) {{
+<div class="card">
+    <h2>$title</h2>
+    <div class="card-body">
+        $content
     </div>
+</div>
 }}
 
-@card({{Welcome}}, {{<p>Hello world</p>}})
+@card({{Welcome}}, {{<p>Lorem ipsum dolor, sit amet consectetur.</p>}})
 ```
 
 Evaluates to:
@@ -23,7 +23,7 @@ Evaluates to:
 <div class="card">
     <h2>Welcome</h2>
     <div class="card-body">
-        <p>Hello world</p>
+        <p>Lorem ipsum dolor, sit amet consectetur.</p>
     </div>
 </div>
 ```
