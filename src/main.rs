@@ -46,7 +46,7 @@ fn main() -> io::Result<()> {
 
     if args.show_ast {
         let tokens = w1::token::tokenize(&src);
-        let ast = w1::ast::parse(tokens);
+        let ast = w1::ast::parse(&src, tokens);
         println!("{:#?}", ast);
         return Ok(());
     }

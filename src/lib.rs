@@ -4,6 +4,6 @@ pub mod token;
 
 pub fn eval<'src>(src: &'src str) -> String {
     let tokens = token::tokenize(&src);
-    let ast = ast::parse(tokens);
+    let ast = ast::parse(src, tokens);
     eval::eval(ast)
 }

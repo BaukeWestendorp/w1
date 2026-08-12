@@ -12,6 +12,14 @@ struct Tokenizer<'src> {
     block_depth: usize,
 }
 
+impl Tokenizer<'_> {
+    pub fn span(&self) -> std::ops::Range<usize> {
+        let start = self.pos;
+        let end = self.src.len();
+        start..end
+    }
+}
+
 impl<'src> Iterator for Tokenizer<'src> {
     type Item = Token<'src>;
 
@@ -32,11 +40,11 @@ impl<'src> Iterator for Tokenizer<'src> {
         if remaining.starts_with("{{") {
             self.pos += 2;
             self.block_depth += 1;
-            return Some(Token::BlockOpen);
+            return Some(Token::new(TokenKind::BlockOpen, self.span()));
         } else if remaining.starts_with("}}") {
             self.pos += 2;
             self.block_depth = self.block_depth.saturating_sub(1);
-            return Some(Token::BlockClose);
+            return Some(Token::new(TokenKind::BlockClose, self.span()));
         }
 
         let first_char = remaining.chars().next().unwrap();
@@ -44,19 +52,19 @@ impl<'src> Iterator for Tokenizer<'src> {
         match first_char {
             '@' => {
                 self.pos += 1;
-                Some(Token::At)
+                Some(Token::new(TokenKind::At, self.span()))
             }
             '(' => {
                 self.pos += 1;
-                Some(Token::ParenOpen)
+                Some(Token::new(TokenKind::ParenOpen, self.span()))
             }
             ')' => {
                 self.pos += 1;
-                Some(Token::ParenClose)
+                Some(Token::new(TokenKind::ParenClose, self.span()))
             }
             ',' => {
                 self.pos += 1;
-                Some(Token::Comma)
+                Some(Token::new(TokenKind::Comma, self.span()))
             }
             '$' => {
                 let end = remaining[1..]
@@ -64,7 +72,7 @@ impl<'src> Iterator for Tokenizer<'src> {
                     .map_or(remaining.len(), |i| i + 1);
                 let var_name = &remaining[1..end];
                 self.pos += end;
-                Some(Token::Variable(var_name))
+                Some(Token::new(TokenKind::Variable(var_name), self.span()))
             }
             _ if first_char.is_alphanumeric() || first_char == '_' => {
                 let end = remaining
@@ -72,7 +80,7 @@ impl<'src> Iterator for Tokenizer<'src> {
                     .unwrap_or(remaining.len());
                 let ident = &remaining[..end];
                 self.pos += end;
-                Some(Token::Ident(ident))
+                Some(Token::new(TokenKind::Ident(ident), self.span()))
             }
             _ => {
                 // Collect text until we hit a character that starts another valid token.
@@ -94,14 +102,34 @@ impl<'src> Iterator for Tokenizer<'src> {
 
                 let text = &remaining[..end];
                 self.pos += end;
-                Some(Token::Text(text))
+                Some(Token::new(TokenKind::Text(text), self.span()))
             }
         }
     }
 }
 
+#[derive(Debug)]
+pub struct Token<'src> {
+    kind: TokenKind<'src>,
+    span: std::ops::Range<usize>,
+}
+
+impl<'src> Token<'src> {
+    pub fn new(kind: TokenKind<'src>, span: std::ops::Range<usize>) -> Self {
+        Self { kind, span }
+    }
+
+    pub fn kind(&self) -> TokenKind<'src> {
+        self.kind
+    }
+
+    pub fn span(&self) -> &std::ops::Range<usize> {
+        &self.span
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Token<'src> {
+pub enum TokenKind<'src> {
     At,
     Ident(&'src str),
     Variable(&'src str),
@@ -113,18 +141,19 @@ pub enum Token<'src> {
     Text(&'src str),
 }
 
-impl std::fmt::Display for Token<'_> {
+impl std::fmt::Display for TokenKind<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Token::At => write!(f, "@"),
-            Token::Ident(ident) => write!(f, "{}", ident),
-            Token::Variable(var) => write!(f, "${}", var),
-            Token::ParenOpen => write!(f, "("),
-            Token::ParenClose => write!(f, ")"),
-            Token::Comma => write!(f, ","),
-            Token::BlockOpen => write!(f, "{{"),
-            Token::BlockClose => write!(f, "}}"),
-            Token::Text(text) => write!(f, "{}", text),
+            TokenKind::At => write!(f, "@"),
+            TokenKind::Ident(ident) => write!(f, "{}", ident),
+            TokenKind::Variable(var) => write!(f, "${}", var),
+            TokenKind::ParenOpen => write!(f, "("),
+            TokenKind::ParenClose => write!(f, ")"),
+            TokenKind::Comma => write!(f, ","),
+            TokenKind::BlockOpen => write!(f, "{{"),
+            TokenKind::BlockClose => write!(f, "}}"),
+            TokenKind::Text(text) => write!(f, "{}", text),
+            TokenKind::Whitespace(_) => write!(f, "<whitespace>"),
         }
     }
 }

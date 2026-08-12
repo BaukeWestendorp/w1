@@ -41,11 +41,11 @@ impl<'src> Evaluator<'src> {
                         let Some(param_ix) =
                             r#macro.params.iter().position(|param| param.name == *name)
                         else {
-                            panic!("undefined variable: {}", name);
+                            self.error(&format!("undefined variable: {}", name));
                         };
 
                         let Some(arg) = invokation.args.get(param_ix) else {
-                            panic!("missing argument for parameter: {}", name);
+                            self.error(&format!("missing argument for parameter: {}", name));
                         };
 
                         for node in &arg.nodes {
@@ -59,7 +59,7 @@ impl<'src> Evaluator<'src> {
 
             output.push_str(&invokation_output);
         } else {
-            panic!("undefined invokation: {}", invokation.name);
+            self.error(&format!("undefined invokation: {}", invokation.name));
         }
     }
 
@@ -67,9 +67,9 @@ impl<'src> Evaluator<'src> {
         match node {
             ast::Node::Macro(_) => {}
             ast::Node::Invokation(invokation) => self.eval_invokation(invokation, output),
-            ast::Node::Variable(variable) => {
-                panic!("unexpected variable node at top level: {variable:?}")
-            }
+            ast::Node::Variable(variable) => self.error(&format!(
+                "unexpected variable node at top level: {variable:?}"
+            )),
             ast::Node::Text(text) => output.push_str(text),
         }
     }
@@ -81,11 +81,15 @@ impl<'src> Evaluator<'src> {
         for node in &self.ast.nodes {
             if let ast::Node::Macro(r#macro) = node {
                 if self.macros.contains_key(r#macro.name) {
-                    panic!("duplicate macro: {}", r#macro.name);
+                    self.error(&format!("duplicate macro: {}", r#macro.name));
                 } else {
                     self.macros.insert(r#macro.name, r#macro.clone());
                 }
             }
         }
+    }
+
+    fn error(&self, message: &str) -> ! {
+        panic!("evaluation error: {}", message);
     }
 }
