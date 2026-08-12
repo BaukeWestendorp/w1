@@ -14,7 +14,7 @@
 </div>
 }}
 
-@card({{Welcome}}, {{<p>Lorem ipsum dolor, sit amet consectetur.</p>}})
+@call card({{Welcome}}, {{<p>Lorem ipsum dolor, sit amet consectetur.</p>}})
 ```
 
 Evaluates to:
