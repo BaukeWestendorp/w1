@@ -103,8 +103,11 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
     fn expect_macro(&mut self) -> Node<'src> {
         self.expect(TokenKind::At);
         self.expect(TokenKind::Ident("macro"));
+        self.skip_whitespace();
         let name = self.expect_ident("expected identifier after @macro");
+        self.skip_whitespace();
         let params = self.parse_params();
+        self.skip_whitespace();
         let template = self.parse_block();
         Node::Macro(Macro {
             name,
@@ -116,6 +119,7 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
     fn parse_invoke(&mut self) -> Node<'src> {
         self.expect(TokenKind::At);
         let name = self.expect_ident("expected identifier after @");
+        self.skip_whitespace();
         let args = self.parse_args();
         Node::Invokation(Invokation { name, args })
     }
@@ -124,10 +128,10 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         let mut params = Vec::new();
         self.expect(TokenKind::ParenOpen);
         loop {
+            self.skip_whitespace();
             if self.peek_kind() == Some(TokenKind::ParenClose) {
                 break;
             }
-
             match self.bump_kind() {
                 Some(TokenKind::Variable(var)) => params.push(Variable { name: var }),
                 Some(TokenKind::Comma) => continue,
@@ -143,13 +147,13 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         let mut args = Vec::new();
         self.expect(TokenKind::ParenOpen);
         loop {
+            self.skip_whitespace();
             if self.peek_kind() == Some(TokenKind::ParenClose) {
                 break;
             }
-
             let block = self.parse_block();
             args.push(block);
-
+            self.skip_whitespace();
             if self.peek_kind() == Some(TokenKind::Comma) {
                 self.bump();
             }
@@ -198,6 +202,12 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
                 "{}: expected identifier, got {:?}",
                 message, other
             )),
+        }
+    }
+
+    fn skip_whitespace(&mut self) {
+        while matches!(self.peek_kind(), Some(TokenKind::Whitespace(_))) {
+            self.bump();
         }
     }
 

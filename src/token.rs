@@ -24,18 +24,20 @@ impl<'src> Iterator for Tokenizer<'src> {
     type Item = Token<'src>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Strip whitespace only when we are outside of a {{ ... }} block
-        if self.block_depth == 0 {
-            let remainder = &self.src[self.pos..];
-            let trimmed = remainder.trim_start();
-            self.pos += remainder.len() - trimmed.len();
-        }
-
         if self.pos >= self.src.len() {
             return None;
         }
 
         let remaining = &self.src[self.pos..];
+
+        if remaining.starts_with(char::is_whitespace) {
+            let end = remaining
+                .find(|c: char| !c.is_whitespace())
+                .unwrap_or(remaining.len());
+            let whitespace = &remaining[..end];
+            self.pos += end;
+            return Some(Token::new(TokenKind::Whitespace(whitespace), self.span()));
+        }
 
         if remaining.starts_with("{{") {
             self.pos += 2;
@@ -139,6 +141,7 @@ pub enum TokenKind<'src> {
     BlockOpen,
     BlockClose,
     Text(&'src str),
+    Whitespace(&'src str),
 }
 
 impl std::fmt::Display for TokenKind<'_> {
