@@ -57,7 +57,7 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
     fn parse_node(&mut self) -> Option<Node<'src>> {
         match self.peek()? {
             Token::At => match self.peek_next() {
-                Some(Token::Ident("define")) => Some(self.expect_define()),
+                Some(Token::Ident("macro")) => Some(self.expect_macro()),
                 Some(Token::Ident(_)) => Some(self.parse_invoke()),
                 _ => Some(self.parse_text()),
             },
@@ -85,16 +85,16 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         }
     }
 
-    fn expect_define(&mut self) -> Node<'src> {
+    fn expect_macro(&mut self) -> Node<'src> {
         self.expect(Token::At);
-        self.expect(Token::Ident("define"));
+        self.expect(Token::Ident("macro"));
 
-        let name = self.expect_ident("expected identifier after @define");
+        let name = self.expect_ident("expected identifier after @macro");
 
         let params = self.parse_params();
         let template = self.parse_block();
 
-        Node::Definition(Definition {
+        Node::Macro(Macro {
             name,
             params,
             template,
@@ -194,14 +194,14 @@ pub struct Ast<'src> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node<'src> {
-    Definition(Definition<'src>),
+    Macro(Macro<'src>),
     Invokation(Invokation<'src>),
     Variable(Variable<'src>),
     Text(&'src str),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Definition<'src> {
+pub struct Macro<'src> {
     pub name: &'src str,
     pub params: Vec<Variable<'src>>,
     pub template: Block<'src>,

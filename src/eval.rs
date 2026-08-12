@@ -9,19 +9,19 @@ pub fn eval<'src>(ast: ast::Ast<'src>) -> String {
 struct Evaluator<'src> {
     ast: ast::Ast<'src>,
 
-    definitions: HashMap<&'src str, ast::Definition<'src>>,
+    macros: HashMap<&'src str, ast::Macro<'src>>,
 }
 
 impl<'src> Evaluator<'src> {
     pub fn new(ast: ast::Ast<'src>) -> Self {
         Self {
             ast,
-            definitions: HashMap::new(),
+            macros: HashMap::new(),
         }
     }
 
     pub fn eval(mut self) -> String {
-        self.collect_definitions();
+        self.collect_macros();
 
         let mut output = String::new();
         for node in &self.ast.nodes {
@@ -31,17 +31,15 @@ impl<'src> Evaluator<'src> {
     }
 
     fn eval_invokation(&self, invokation: &ast::Invokation<'src>, output: &mut String) {
-        if let Some(definition) = self.definitions.get(invokation.name) {
+        if let Some(r#macro) = self.macros.get(invokation.name) {
             let mut invokation_output = String::new();
 
-            for node in &definition.template.nodes {
+            for node in &r#macro.template.nodes {
                 match node {
                     ast::Node::Text(text) => invokation_output.push_str(text),
                     ast::Node::Variable(ast::Variable { name }) => {
-                        let Some(param_ix) = definition
-                            .params
-                            .iter()
-                            .position(|param| param.name == *name)
+                        let Some(param_ix) =
+                            r#macro.params.iter().position(|param| param.name == *name)
                         else {
                             panic!("undefined variable: {}", name);
                         };
@@ -54,7 +52,7 @@ impl<'src> Evaluator<'src> {
                             self.eval_node(node, &mut invokation_output);
                         }
                     }
-                    ast::Node::Definition(_) => todo!("FIXME: implement nested definitions"),
+                    ast::Node::Macro(_) => todo!("FIXME: implement nested macros"),
                     ast::Node::Invokation(_) => todo!("FIXME: implement nested invokations"),
                 }
             }
@@ -67,7 +65,7 @@ impl<'src> Evaluator<'src> {
 
     fn eval_node(&self, node: &ast::Node<'src>, output: &mut String) {
         match node {
-            ast::Node::Definition(_) => {}
+            ast::Node::Macro(_) => {}
             ast::Node::Invokation(invokation) => self.eval_invokation(invokation, output),
             ast::Node::Variable(variable) => {
                 panic!("unexpected variable node at top level: {variable:?}")
@@ -76,16 +74,16 @@ impl<'src> Evaluator<'src> {
         }
     }
 
-    fn collect_definitions(&mut self) {
-        self.definitions.clear();
+    fn collect_macros(&mut self) {
+        self.macros.clear();
 
-        // FIXME: Definitions should be scoped.
+        // FIXME: Macros should be scoped.
         for node in &self.ast.nodes {
-            if let ast::Node::Definition(definition) = node {
-                if self.definitions.contains_key(definition.name) {
-                    panic!("duplicate definition: {}", definition.name);
+            if let ast::Node::Macro(r#macro) = node {
+                if self.macros.contains_key(r#macro.name) {
+                    panic!("duplicate macro: {}", r#macro.name);
                 } else {
-                    self.definitions.insert(definition.name, definition.clone());
+                    self.macros.insert(r#macro.name, r#macro.clone());
                 }
             }
         }
