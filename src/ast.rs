@@ -65,7 +65,9 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
             self.nodes.push(node);
         }
 
-        Ast { nodes: self.nodes }
+        Ast {
+            root: Block { nodes: self.nodes },
+        }
     }
 
     fn parse_node(&mut self) -> Option<Node<'src>> {
@@ -111,7 +113,7 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         let template = self.parse_block();
         Node::Macro(Macro {
             name,
-            params,
+            parameters: params,
             template,
         })
     }
@@ -121,7 +123,10 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         let name = self.expect_ident("expected identifier after @");
         self.skip_whitespace();
         let args = self.parse_args();
-        Node::Invokation(Invokation { name, args })
+        Node::Invokation(Invokation {
+            name,
+            arguments: args,
+        })
     }
 
     fn parse_params(&mut self) -> Vec<Variable<'src>> {
@@ -221,7 +226,7 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ast<'src> {
-    pub nodes: Vec<Node<'src>>,
+    pub root: Block<'src>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -235,14 +240,14 @@ pub enum Node<'src> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Macro<'src> {
     pub name: &'src str,
-    pub params: Vec<Variable<'src>>,
+    pub parameters: Vec<Variable<'src>>,
     pub template: Block<'src>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Invokation<'src> {
     pub name: &'src str,
-    pub args: Vec<Block<'src>>,
+    pub arguments: Vec<Block<'src>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

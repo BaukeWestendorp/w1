@@ -1,95 +1,113 @@
 use std::collections::HashMap;
 
-use crate::ast::{self};
+use crate::ast::{self, Block};
 
-pub fn eval<'src>(ast: ast::Ast<'src>) -> String {
+pub fn eval<'src>(ast: &'src ast::Ast<'src>) -> String {
     Evaluator::new(ast).eval()
 }
 
 struct Evaluator<'src> {
-    ast: ast::Ast<'src>,
-
-    macros: HashMap<&'src str, ast::Macro<'src>>,
+    scope: Scope<'src>,
 }
 
 impl<'src> Evaluator<'src> {
-    pub fn new(ast: ast::Ast<'src>) -> Self {
+    pub fn new(ast: &'src ast::Ast<'src>) -> Self {
         Self {
-            ast,
-            macros: HashMap::new(),
+            scope: Scope::new_root(&ast.root),
         }
     }
 
     pub fn eval(mut self) -> String {
-        self.collect_macros();
-
         let mut output = String::new();
-        for node in &self.ast.nodes {
-            self.eval_node(node, &mut output);
-        }
+        self.scope.eval(&mut output);
         output
     }
+}
 
-    fn eval_invokation(&self, invokation: &ast::Invokation<'src>, output: &mut String) {
-        if let Some(r#macro) = self.macros.get(invokation.name) {
-            let mut invokation_output = String::new();
+struct Scope<'src> {
+    parent: Option<&'src Scope<'src>>,
+    block: &'src Block<'src>,
+    macros: HashMap<&'src str, &'src ast::Macro<'src>>,
+    variables: HashMap<&'src ast::Variable<'src>, &'src ast::Block<'src>>,
+}
 
-            for node in &r#macro.template.nodes {
-                match node {
-                    ast::Node::Text(text) => invokation_output.push_str(text),
-                    ast::Node::Variable(ast::Variable { name }) => {
-                        let Some(param_ix) =
-                            r#macro.params.iter().position(|param| param.name == *name)
-                        else {
-                            self.error(&format!("undefined variable: {}", name));
-                        };
+impl<'src> Scope<'src> {
+    pub fn new(block: &'src Block<'src>, parent: &'src Self) -> Self {
+        let mut this = Self::new_root(block);
+        this.parent = Some(parent);
+        this
+    }
 
-                        let Some(arg) = invokation.args.get(param_ix) else {
-                            self.error(&format!("missing argument for parameter: {}", name));
-                        };
-
-                        for node in &arg.nodes {
-                            self.eval_node(node, &mut invokation_output);
-                        }
-                    }
-                    ast::Node::Macro(_) => todo!("FIXME: implement nested macros"),
-                    ast::Node::Invokation(_) => todo!("FIXME: implement nested invokations"),
-                }
-            }
-
-            output.push_str(&invokation_output);
-        } else {
-            self.error(&format!("undefined invokation: {}", invokation.name));
+    pub fn new_root(block: &'src Block<'src>) -> Self {
+        Self {
+            parent: None,
+            block,
+            macros: HashMap::new(),
+            variables: HashMap::new(),
         }
     }
 
-    fn eval_node(&self, node: &ast::Node<'src>, output: &mut String) {
+    pub fn eval(&mut self, output: &mut String) {
+        let block = self.block;
+        for node in &block.nodes {
+            self.eval_node(node, output);
+        }
+    }
+
+    fn eval_node(&mut self, node: &'src ast::Node<'src>, output: &mut String) {
         match node {
-            ast::Node::Macro(_) => {}
+            ast::Node::Macro(r#macro) => self.eval_macro(r#macro),
             ast::Node::Invokation(invokation) => self.eval_invokation(invokation, output),
-            ast::Node::Variable(variable) => self.error(&format!(
-                "unexpected variable node at top level: {variable:?}"
-            )),
+            ast::Node::Variable(variable) => self.eval_variable(variable, output),
             ast::Node::Text(text) => output.push_str(text),
         }
     }
 
-    fn collect_macros(&mut self) {
-        self.macros.clear();
+    fn eval_macro(&mut self, r#macro: &'src ast::Macro<'src>) {
+        self.macros.insert(r#macro.name, r#macro);
+    }
 
-        // FIXME: Macros should be scoped.
-        for node in &self.ast.nodes {
-            if let ast::Node::Macro(r#macro) = node {
-                if self.macros.contains_key(r#macro.name) {
-                    self.error(&format!("duplicate macro: {}", r#macro.name));
-                } else {
-                    self.macros.insert(r#macro.name, r#macro.clone());
-                }
-            }
+    fn eval_invokation(&mut self, invokation: &ast::Invokation<'src>, output: &mut String) {
+        let r#macro = self.get_macro(invokation.name);
+
+        let mut invokation_output = String::new();
+        let mut scope = Scope::new(&r#macro.template, self);
+
+        for (param, arg) in r#macro.parameters.iter().zip(invokation.arguments.iter()) {
+            scope.variables.insert(param, arg);
+        }
+
+        scope.eval(&mut invokation_output);
+        output.push_str(&invokation_output);
+    }
+
+    fn eval_variable(&mut self, variable: &ast::Variable<'src>, output: &mut String) {
+        let block_to_expand = self.get_variable(variable);
+        let mut scope = Scope::new(&block_to_expand, self);
+        scope.eval(output);
+    }
+
+    pub fn get_macro(&self, name: &str) -> &ast::Macro<'src> {
+        if let Some(r#macro) = self.macros.get(name) {
+            r#macro
+        } else if let Some(parent) = self.parent {
+            parent.get_macro(name)
+        } else {
+            error(&format!("undefined macro: {}", name));
         }
     }
 
-    fn error(&self, message: &str) -> ! {
-        panic!("evaluation error: {}", message);
+    pub fn get_variable(&self, variable: &ast::Variable<'src>) -> &ast::Block<'src> {
+        if let Some(block) = self.variables.get(variable) {
+            block
+        } else if let Some(parent) = self.parent {
+            parent.get_variable(variable)
+        } else {
+            error(&format!("undefined variable: {}", variable.name));
+        }
     }
+}
+
+fn error(message: &str) -> ! {
+    panic!("evaluation error: {}", message);
 }
