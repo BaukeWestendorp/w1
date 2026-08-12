@@ -57,7 +57,7 @@ impl<'src> Scope<'src> {
     fn eval_node(&mut self, node: &'src ast::Node<'src>, output: &mut String) {
         match node {
             ast::Node::Macro(r#macro) => self.eval_macro(r#macro),
-            ast::Node::Invokation(invokation) => self.eval_invokation(invokation, output),
+            ast::Node::Call(call) => self.eval_call(call, output),
             ast::Node::Variable(variable) => self.eval_variable(variable, output),
             ast::Node::Text(text) => output.push_str(text),
         }
@@ -67,18 +67,18 @@ impl<'src> Scope<'src> {
         self.macros.insert(r#macro.name, r#macro);
     }
 
-    fn eval_invokation(&mut self, invokation: &ast::Invokation<'src>, output: &mut String) {
-        let r#macro = self.get_macro(invokation.name);
+    fn eval_call(&mut self, call: &ast::Call<'src>, output: &mut String) {
+        let r#macro = self.get_macro(call.name);
 
-        let mut invokation_output = String::new();
+        let mut call_output = String::new();
         let mut scope = Scope::new(&r#macro.template, self);
 
-        for (param, arg) in r#macro.parameters.iter().zip(invokation.arguments.iter()) {
+        for (param, arg) in r#macro.parameters.iter().zip(call.arguments.iter()) {
             scope.variables.insert(param, arg);
         }
 
-        scope.eval(&mut invokation_output);
-        output.push_str(&invokation_output);
+        scope.eval(&mut call_output);
+        output.push_str(&call_output);
     }
 
     fn eval_variable(&mut self, variable: &ast::Variable<'src>, output: &mut String) {

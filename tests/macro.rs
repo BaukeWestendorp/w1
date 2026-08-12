@@ -10,7 +10,7 @@ fn basic() {
 </div>
 }}
 
-@card({{Welcome}}, {{<p>Lorem ipsum dolor, sit amet consectetur.</p>}})
+@call card({{Welcome}}, {{<p>Lorem ipsum dolor, sit amet consectetur.</p>}})
 "#;
 
     const EXPECTED_OUTPUT: &str = r#"
@@ -33,7 +33,7 @@ fn basic() {
 }
 
 #[test]
-fn nested_invokation() {
+fn nested_call() {
     const INPUT: &str = r#"
 @macro button($label, $action) {{<button onclick="$action">$label</button>}}
 
@@ -44,12 +44,12 @@ fn nested_invokation() {
         $content
     </div>
     <div class="modal-footer">
-        @button({{$button_label}}, {{closeModal()}})
+        @call button({{$button_label}}, {{closeModal()}})
     </div>
 </div>
 }}
 
-@modal({{Warning}}, {{<p>Are you sure you want to delete this?</p>}}, {{Confirm}})
+@call modal({{Warning}}, {{<p>Are you sure you want to delete this?</p>}}, {{Confirm}})
 "#;
 
     const EXPECTED_OUTPUT: &str = r#"
@@ -81,10 +81,10 @@ fn nested_macro_definition() {
     const INPUT: &str = r#"
 @macro outer($prefix) {{
 @macro inner($text) {{$prefix: $text}}
-@inner({{Hello World}})
+@call inner({{Hello World}})
 }}
 
-@outer({{INFO}})
+@call outer({{INFO}})
 "#;
 
     const EXPECTED_OUTPUT: &str = r#"

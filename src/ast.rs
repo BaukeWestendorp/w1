@@ -74,7 +74,10 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         match self.peek_kind()? {
             TokenKind::At => match self.peek_next_kind() {
                 Some(TokenKind::Ident("macro")) => Some(self.expect_macro()),
-                Some(TokenKind::Ident(_)) => Some(self.parse_invoke()),
+                Some(TokenKind::Ident("call")) => Some(self.expect_call()),
+                Some(TokenKind::Ident(other)) => {
+                    self.error(&format!("unexpected identifier after @: {}", other))
+                }
                 _ => Some(self.parse_text()),
             },
             TokenKind::Variable(_) => match self.bump_kind() {
@@ -118,12 +121,14 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         })
     }
 
-    fn parse_invoke(&mut self) -> Node<'src> {
+    fn expect_call(&mut self) -> Node<'src> {
         self.expect(TokenKind::At);
-        let name = self.expect_ident("expected identifier after @");
+        self.expect(TokenKind::Ident("call"));
+        self.skip_whitespace();
+        let name = self.expect_ident("expected identifier after @call");
         self.skip_whitespace();
         let args = self.parse_args();
-        Node::Invokation(Invokation {
+        Node::Call(Call {
             name,
             arguments: args,
         })
@@ -232,7 +237,7 @@ pub struct Ast<'src> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node<'src> {
     Macro(Macro<'src>),
-    Invokation(Invokation<'src>),
+    Call(Call<'src>),
     Variable(Variable<'src>),
     Text(&'src str),
 }
@@ -245,7 +250,7 @@ pub struct Macro<'src> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Invokation<'src> {
+pub struct Call<'src> {
     pub name: &'src str,
     pub arguments: Vec<Block<'src>>,
 }
