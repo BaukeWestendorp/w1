@@ -2,7 +2,9 @@
 
 `w1` is a small text-processing macro language written in Rust.
 
-## Example
+## Examples
+
+### Macro
 
 ```html
 @macro card($title, $content) {{
@@ -26,6 +28,26 @@ Evaluates to:
         <p>Lorem ipsum dolor, sit amet consectetur.</p>
     </div>
 </div>
+```
+
+### Define and loop
+
+```html
+@define $posts = [
+    [ $id = {{1}}, $title = {{Julius}} ],
+    [ $id = {{2}}, $title = {{Brumpo}} ],
+    [ $id = {{3}}, $title = {{Zwalestino}} ],
+]
+
+@for [$id, $title] in $posts {{<a href="/posts/$id">$title</a>}}
+```
+
+Evaluates to:
+
+```html
+<a href="/posts/1">Julius</a>
+<a href="/posts/2">Brumpo</a
+<a href="/posts/3">Zwalestino</a>
 ```
 
 ## CLI
