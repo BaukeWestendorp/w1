@@ -73,6 +73,8 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
     fn parse_node(&mut self) -> Option<Node<'src>> {
         match self.peek_kind()? {
             TokenKind::At => match self.peek_next_kind() {
+                Some(TokenKind::Ident("define")) => Some(self.expect_define()),
+                Some(TokenKind::Ident("for")) => Some(self.expect_for()),
                 Some(TokenKind::Ident("macro")) => Some(self.expect_macro()),
                 Some(TokenKind::Ident("call")) => Some(self.expect_call()),
                 Some(TokenKind::Ident(other)) => {
@@ -95,7 +97,10 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
             Some(TokenKind::Ident(text)) => Node::Text(text),
             Some(TokenKind::ParenOpen) => Node::Text("("),
             Some(TokenKind::ParenClose) => Node::Text(")"),
+            Some(TokenKind::BracketOpen) => Node::Text("["),
+            Some(TokenKind::BracketClose) => Node::Text("]"),
             Some(TokenKind::Comma) => Node::Text(","),
+            Some(TokenKind::Equal) => Node::Text("="),
             Some(TokenKind::BlockOpen) => Node::Text("{{"),
             Some(TokenKind::Text(text)) => Node::Text(text),
             Some(TokenKind::Whitespace(ws)) => Node::Text(ws),
@@ -105,15 +110,47 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         }
     }
 
+    fn expect_define(&mut self) -> Node<'src> {
+        self.expect(TokenKind::At);
+        self.expect(TokenKind::Ident("define"));
+        self.skip_whitespace();
+        let name = self.expect_var();
+        self.skip_whitespace();
+        self.expect(TokenKind::Equal);
+        self.skip_whitespace();
+        let list = self.expect_list_definition();
+
+        Node::Define(Define { name, list })
+    }
+
+    fn expect_for(&mut self) -> Node<'src> {
+        self.expect(TokenKind::At);
+        self.expect(TokenKind::Ident("for"));
+        self.skip_whitespace();
+        let fields = self.expect_list();
+        self.skip_whitespace();
+        self.expect(TokenKind::Ident("in"));
+        self.skip_whitespace();
+        let list = self.expect_var();
+        self.skip_whitespace();
+        let template = self.expect_block();
+
+        Node::For(For {
+            list,
+            fields,
+            template,
+        })
+    }
+
     fn expect_macro(&mut self) -> Node<'src> {
         self.expect(TokenKind::At);
         self.expect(TokenKind::Ident("macro"));
         self.skip_whitespace();
-        let name = self.expect_ident("expected identifier after @macro");
+        let name = self.expect_ident();
         self.skip_whitespace();
-        let params = self.parse_params();
+        let params = self.expect_params();
         self.skip_whitespace();
-        let template = self.parse_block();
+        let template = self.expect_block();
         Node::Macro(Macro {
             name,
             parameters: params,
@@ -125,16 +162,16 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         self.expect(TokenKind::At);
         self.expect(TokenKind::Ident("call"));
         self.skip_whitespace();
-        let name = self.expect_ident("expected identifier after @call");
+        let name = self.expect_ident();
         self.skip_whitespace();
-        let args = self.parse_args();
+        let args = self.expect_args();
         Node::Call(Call {
             name,
             arguments: args,
         })
     }
 
-    fn parse_params(&mut self) -> Vec<Variable<'src>> {
+    fn expect_params(&mut self) -> Vec<Variable<'src>> {
         let mut params = Vec::new();
         self.expect(TokenKind::ParenOpen);
         loop {
@@ -153,7 +190,26 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         params
     }
 
-    fn parse_args(&mut self) -> Vec<Block<'src>> {
+    fn expect_list(&mut self) -> Vec<Variable<'src>> {
+        let mut params = Vec::new();
+        self.expect(TokenKind::BracketOpen);
+        loop {
+            self.skip_whitespace();
+            if self.peek_kind() == Some(TokenKind::BracketClose) {
+                break;
+            }
+            match self.bump_kind() {
+                Some(TokenKind::Variable(var)) => params.push(Variable { name: var }),
+                Some(TokenKind::Comma) => continue,
+                Some(token) => self.error(&format!("expected variable or comma, got {:?}", token)),
+                None => self.error("unexpected EOF while parsing list"),
+            }
+        }
+        self.expect(TokenKind::BracketClose);
+        params
+    }
+
+    fn expect_args(&mut self) -> Vec<Block<'src>> {
         let mut args = Vec::new();
         self.expect(TokenKind::ParenOpen);
         loop {
@@ -161,7 +217,7 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
             if self.peek_kind() == Some(TokenKind::ParenClose) {
                 break;
             }
-            let block = self.parse_block();
+            let block = self.expect_block();
             args.push(block);
             self.skip_whitespace();
             if self.peek_kind() == Some(TokenKind::Comma) {
@@ -172,7 +228,7 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         args
     }
 
-    fn parse_block(&mut self) -> Block<'src> {
+    fn expect_block(&mut self) -> Block<'src> {
         let mut block = Block { nodes: Vec::new() };
         self.expect(TokenKind::BlockOpen);
         while let Some(token) = self.peek_kind() {
@@ -186,12 +242,64 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         block
     }
 
-    fn eat(&mut self, expected: TokenKind<'src>) -> bool {
-        if self.peek_kind() == Some(expected) {
-            self.bump();
-            true
-        } else {
-            false
+    fn expect_list_definition(&mut self) -> ListDefinition<'src> {
+        let mut objects = Vec::new();
+        self.expect(TokenKind::BracketOpen);
+        loop {
+            self.skip_whitespace();
+            if self.peek_kind() == Some(TokenKind::BracketClose) {
+                break;
+            }
+            let object = self.expect_object();
+            objects.push(object);
+            self.skip_whitespace();
+            if self.peek_kind() == Some(TokenKind::Comma) {
+                self.bump();
+            }
+        }
+        self.expect(TokenKind::BracketClose);
+        ListDefinition { objects }
+    }
+
+    fn expect_object(&mut self) -> Object<'src> {
+        let mut fields = Vec::new();
+        self.expect(TokenKind::BracketOpen);
+        loop {
+            self.skip_whitespace();
+            if self.peek_kind() == Some(TokenKind::BracketClose) {
+                break;
+            }
+            let field = self.expect_field();
+            fields.push(field);
+            self.skip_whitespace();
+            if self.peek_kind() == Some(TokenKind::Comma) {
+                self.bump();
+            }
+        }
+        self.expect(TokenKind::BracketClose);
+        Object { fields }
+    }
+
+    fn expect_field(&mut self) -> Field<'src> {
+        let name = self.expect_var();
+        self.skip_whitespace();
+        self.expect(TokenKind::Equal);
+        self.skip_whitespace();
+        let value = self.expect_block();
+        Field { name, value }
+    }
+
+    fn expect_ident(&mut self) -> &'src str {
+        match self.bump_kind() {
+            Some(TokenKind::Ident(name)) => name,
+            other => self.error(&format!("expected identifier, got {:?}", other)),
+        }
+    }
+
+    fn expect_var(&mut self) -> Variable<'src> {
+        match self.bump_kind() {
+            Some(TokenKind::Variable(name)) => Variable { name },
+            other => self.error(&format!("expected variable, got {:?}", other)),
         }
     }
 
@@ -205,13 +313,12 @@ impl<'src, I: Iterator<Item = Token<'src>>> Parser<'src, I> {
         }
     }
 
-    fn expect_ident(&mut self, message: &str) -> &'src str {
-        match self.bump_kind() {
-            Some(TokenKind::Ident(name)) => name,
-            other => self.error(&format!(
-                "{}: expected identifier, got {:?}",
-                message, other
-            )),
+    fn eat(&mut self, expected: TokenKind<'src>) -> bool {
+        if self.peek_kind() == Some(expected) {
+            self.bump();
+            true
+        } else {
+            false
         }
     }
 
@@ -236,10 +343,27 @@ pub struct Ast<'src> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node<'src> {
+    Define(Define<'src>),
+    For(For<'src>),
     Macro(Macro<'src>),
     Call(Call<'src>),
     Variable(Variable<'src>),
+    List(ListDefinition<'src>),
     Text(&'src str),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Define<'src> {
+    pub name: Variable<'src>,
+    // FIXME: Would be noice if this could be a general `Value` so you can define constants too.
+    pub list: ListDefinition<'src>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct For<'src> {
+    pub list: Variable<'src>,
+    pub fields: Vec<Variable<'src>>,
+    pub template: Block<'src>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -263,4 +387,20 @@ pub struct Variable<'src> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Block<'src> {
     pub nodes: Vec<Node<'src>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ListDefinition<'src> {
+    pub objects: Vec<Object<'src>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Object<'src> {
+    pub fields: Vec<Field<'src>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Field<'src> {
+    pub name: Variable<'src>,
+    pub value: Block<'src>,
 }

@@ -64,9 +64,21 @@ impl<'src> Iterator for Tokenizer<'src> {
                 self.pos += 1;
                 Some(Token::new(TokenKind::ParenClose, self.span()))
             }
+            '[' => {
+                self.pos += 1;
+                Some(Token::new(TokenKind::BracketOpen, self.span()))
+            }
+            ']' => {
+                self.pos += 1;
+                Some(Token::new(TokenKind::BracketClose, self.span()))
+            }
             ',' => {
                 self.pos += 1;
                 Some(Token::new(TokenKind::Comma, self.span()))
+            }
+            '=' => {
+                self.pos += 1;
+                Some(Token::new(TokenKind::Equal, self.span()))
             }
             '$' => {
                 let end = remaining[1..]
@@ -137,7 +149,10 @@ pub enum TokenKind<'src> {
     Variable(&'src str),
     ParenOpen,
     ParenClose,
+    BracketClose,
+    BracketOpen,
     Comma,
+    Equal,
     BlockOpen,
     BlockClose,
     Text(&'src str),
@@ -152,7 +167,10 @@ impl std::fmt::Display for TokenKind<'_> {
             TokenKind::Variable(var) => write!(f, "${}", var),
             TokenKind::ParenOpen => write!(f, "("),
             TokenKind::ParenClose => write!(f, ")"),
+            TokenKind::BracketOpen => write!(f, "["),
+            TokenKind::BracketClose => write!(f, "]"),
             TokenKind::Comma => write!(f, ","),
+            TokenKind::Equal => write!(f, "="),
             TokenKind::BlockOpen => write!(f, "{{"),
             TokenKind::BlockClose => write!(f, "}}"),
             TokenKind::Text(text) => write!(f, "{}", text),
